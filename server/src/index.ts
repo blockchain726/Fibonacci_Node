@@ -38,18 +38,22 @@ const redisPublisher = redisClient.duplicate();
 app.get('/output', async (req: Request, res: Response) => {
   const { ticket } = req.query
   redisClient.hgetall('values', (err: any, values: any) => {
-    res.send(values?.[ticket as string] ?? "There is not ticket");
+    res.send(values?.[ticket as string] ?? "no ticket");
   });
 });
 
 app.post('/input', async (req: Request, res: Response) => {
   const index = req.body.index;
-
-  redisClient.hset('values', index, 'Nothing yet!');
-  redisPublisher.publish('insert', index);
-  pgClient.query('INSERT INTO values(number) VALUES($1)', [index]);
-
-  res.send({ "ticket": index });
+  redisClient.hgetall('values', (err: any, values: any) => {
+    if (values?.[index as string]) {
+      res.send({ "ticket": index });
+    } else {
+      redisClient.hset('values', index, 'is being calculated');
+      redisPublisher.publish('insert', index);
+      pgClient.query('INSERT INTO values(number) VALUES($1)', [index]);
+      res.send({ "ticket": index });
+    }
+  });
 });
 
 app.listen(5000, () => {
